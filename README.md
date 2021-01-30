@@ -5,8 +5,8 @@ hardware except Wio Terminal itself
 
 ## Dependencies
 
-1. [Adafruit_ZeroDMA](https://github.com/adafruit/Adafruit_ZeroDMA)
-2. [Vgm Decoder](https://github.com/lexus2k/vgm_decoder)
+1. [Adafruit_ZeroDMA](https://github.com/adafruit/Adafruit_ZeroDMA) (already included to Wio Terminal Arduino IDE board package)
+2. [Vgm Decoder](https://github.com/lexus2k/vgm_decoder) (Already included to this project)
 
 ## How to build
 
