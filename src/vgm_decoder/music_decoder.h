@@ -1,29 +1,7 @@
-## Wio Terminal Nes Buzzer player
-
-Wio Terminal NES music player. It uses standard BUZZER and doesn't require any
-hardware except Wio Terminal itself
-
-## Dependencies
-
-1. [Adafruit_ZeroDMA](https://github.com/adafruit/Adafruit_ZeroDMA)
-2. [Vgm Decoder](https://github.com/lexus2k/vgm_decoder)
-
-## How to build
-
-1. You need Wio Terminal hardware, based on SAMD51
-2. Open project in Arduino
-3. Compile and flash
-
-## How to convert binary music files to c++ code
-
-> xxd -i bucky_ohare.nsf > bucky_ohare.cpp
-
-
-## License
-
+/*
 MIT License
 
-Copyright (c) 2021 Aleksei Dynda
+Copyright (c) 2020 Aleksei Dynda
 
 Permission is hereby granted, free of charge, to any person obtaining a copy
 of this software and associated documentation files (the "Software"), to deal
@@ -42,3 +20,38 @@ AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
 LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
+*/
+
+#pragma once
+
+#include <stdint.h>
+
+class BaseMusicDecoder
+{
+public:
+    BaseMusicDecoder() = default;
+    virtual ~BaseMusicDecoder() = default;
+
+    /** Allows to open NSF and VGM data blocks */
+    virtual bool open(const uint8_t *data, int size) = 0;
+
+    virtual uint32_t getSample() = 0;
+
+    /**
+     * Decodes data block and returns number of samples to read from decoder.
+     * If it returns -1, then error occured, 0 means - nothing left.
+     */
+    virtual int decodeBlock() = 0;
+
+    /** Sets sampling frequency. ,Must be called before decodePcm */
+//    void setSampleFrequency( uint32_t frequency ) virtual;
+
+    /** Sets volume, default level is 64 */
+    virtual void setVolume(uint16_t volume) {}
+
+    /** Returns number of tracks in opened file */
+    virtual int getTrackCount() { return 1; }
+
+    /** Sets track to play */
+    virtual bool setTrack(int track) { return true; };
+};

@@ -1,29 +1,7 @@
-## Wio Terminal Nes Buzzer player
-
-Wio Terminal NES music player. It uses standard BUZZER and doesn't require any
-hardware except Wio Terminal itself
-
-## Dependencies
-
-1. [Adafruit_ZeroDMA](https://github.com/adafruit/Adafruit_ZeroDMA)
-2. [Vgm Decoder](https://github.com/lexus2k/vgm_decoder)
-
-## How to build
-
-1. You need Wio Terminal hardware, based on SAMD51
-2. Open project in Arduino
-3. Compile and flash
-
-## How to convert binary music files to c++ code
-
-> xxd -i bucky_ohare.nsf > bucky_ohare.cpp
-
-
-## License
-
+/*
 MIT License
 
-Copyright (c) 2021 Aleksei Dynda
+Copyright (c) 2020 Aleksei Dynda
 
 Permission is hereby granted, free of charge, to any person obtaining a copy
 of this software and associated documentation files (the "Software"), to deal
@@ -42,3 +20,30 @@ AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
 LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
+*/
+
+#pragma once
+
+#include <stdint.h>
+
+typedef struct NsfHeader
+{
+    uint32_t ident; // NESM
+    uint8_t byte1A;
+    uint8_t version;
+    uint8_t songIndex; // 1, 2, ...
+    uint16_t loadAddress;
+    uint16_t initAddress;
+    uint16_t playAddress;
+    uint8_t name[32];
+    uint8_t artist[32];
+    uint8_t copyright[32];
+    uint16_t ntscPlaySpeed; // 1/1000000 second ticks
+    uint8_t bankSwitch[8];
+    uint16_t palPlaySpeed; // 1/1000000 second ticks
+    uint8_t palNtscBits;
+    uint8_t extraSoundChip;
+    uint8_t nsf2Reserved;
+    uint8_t dataLength[3];
+} NsfHeader;
+
