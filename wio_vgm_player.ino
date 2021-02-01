@@ -85,11 +85,11 @@ void dmaInit()
     dmac_descriptor_1 = pwmDMA.addDescriptor(
            (void *)(&buffer_tx[0][0] + 1), // + 1 is required to start from MSB byte
            (void *)(&TCC0->CCBUF[4].reg),  // CCBUF[4] is used as desination for PWM timer
-           sizeof(buffer_tx[0])/2,         // Since the buffer contains 16-bit data, number of samples will be twice less
+           sizeof(buffer_tx[0])/4,         // Since the buffer contains 16-bit stereo data, number of samples will be 4 times less
            DMA_BEAT_SIZE_BYTE,             // Transfer only single byte to PWM timer
            true,                           // Source address is incremented every sample
            false,                          // Destination address is the same - it is PWM timer reg
-           DMA_ADDRESS_INCREMENT_STEP_SIZE_2, // Shift by 2 bytes with each sample - follow 16-bit PCM format
+           DMA_ADDRESS_INCREMENT_STEP_SIZE_4, // Shift by 4 bytes with each sample - follow 16-bit PCM stereo format
            DMA_STEPSEL_SRC);               // That all valid for data source
     /** When buffer transfer is complete, tell DMA to generate interrupt */
     dmac_descriptor_1->BTCTRL.bit.BLOCKACT = DMA_BLOCK_ACTION_INT;
@@ -97,11 +97,11 @@ void dmaInit()
     dmac_descriptor_2 = pwmDMA.addDescriptor(
            (void *)(&buffer_tx[1][0] + 1),
            (void *)(&TCC0->CCBUF[4].reg),
-           sizeof(buffer_tx[1])/2,
+           sizeof(buffer_tx[1])/4,
            DMA_BEAT_SIZE_BYTE,
            true,
            false,
-           DMA_ADDRESS_INCREMENT_STEP_SIZE_2,
+           DMA_ADDRESS_INCREMENT_STEP_SIZE_4,
            DMA_STEPSEL_SRC);
     dmac_descriptor_2->BTCTRL.bit.BLOCKACT = DMA_BLOCK_ACTION_INT;
     /** Loop DMA buffers: 0->1->0->1 and etc. */
@@ -163,11 +163,11 @@ void pwmInit()
         (PORT->Group[g_APinDescription[12].ulPort].PMUX[g_APinDescription[12].ulPin >> 1].reg & 0x0F) | ( 5 << 4 );
 
     /**
-     Set timer prescaler to 1. That will give us 24MHz / 1 = 24 millons of timer ticks per second. For byte-size PWM, every PWM cycle needs
-     at least 256 ticks. That will give us ~ 46.875 KhZ. Yeah, it is not the same as 44.1 kHz, but it is still
+     Set timer prescaler to 2. That will give us 24MHz / 2 = 12 millons of timer ticks per second. For byte-size PWM, every PWM cycle needs
+     at least 256 ticks. That will give us ~ 12'000'000 / 256 = 46.875 kHz. Yeah, it is not the same as 44.1 kHz, but it is still
      acceptable.
     */
-    TCC0->CTRLA.reg = TC_CTRLA_PRESCALER_DIV1 |        // Set prescaler to 1, 23MHz/1 = 12MHz should be 1
+    TCC0->CTRLA.reg = TC_CTRLA_PRESCALER_DIV2 |        // Set prescaler to 2, 24MHz/2 = 12MHz
                       TC_CTRLA_PRESCSYNC_PRESC;        // Set the reset/reload to trigger on prescaler clock
     TCC0->WAVE.reg = TCC_WAVE_WAVEGEN_NPWM;      // Set-up TC2 timer for Normal PWM mode (NPWM)
     /** 
@@ -175,7 +175,7 @@ void pwmInit()
      So, to compensate that difference we can add error ro PWM counter period... 256 * (46.875 - 44.1) / 44.1 = 16.
      That will reduce volume slightly, but will fix the frequency.
      */
-    TCC0->PER.reg = 255 + 16;                    // Use PER register as TOP value, set for 48kHz PWM 
+    TCC0->PER.reg = 255 + 16;                    // Use PER register as TOP value, set for 44.1kHz PWM 
     while (TCC0->SYNCBUSY.bit.PER);              // Wait for synchronization
     TCC0->CC[4].reg = 0;                         // Set the duty cycle to 0%
     while (TCC0->SYNCBUSY.bit.CC4);              // Wait for synchronization
