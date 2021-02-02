@@ -24,20 +24,61 @@ SOFTWARE.
 
 
 #include "Adafruit_ZeroDMA.h"
-#include "src/vgm_decoder/vgm_file.h"
+#include "vgm_file.h"
 #include "vampire_killer.h"
 #include "bucky_ohare.h"
+#include "lcdgfx.h"
+#include "lcd_backlight.hpp"
+//#include "Seeed_FS.h" //Including SD card library
 
 #include <string.h>
+#include <stdio.h>
+
+typedef enum
+{
+    MODE_PLAY,
+    MODE_BROWSE,
+} PlayerMode;
+
+PlayerMode playerMode = MODE_BROWSE;
+
+typedef struct
+{
+    char name[32];
+    const uint8_t *data;
+    int dataLen;
+    int track;  // Some nsf files have several tracks inside
+} TrackInfo;
+
+/**
+ * Available tracks
+ */
+static const TrackInfo tracks[] = 
+{
+    { "Vampire Killer", vampire_killer_vgm, vampire_killer_vgm_len, 0 },
+    { "Bucky Ohare 1", bucky_ohare_nsf, bucky_ohare_nsf_len, 0 },
+    { "Bucky Ohare 2", bucky_ohare_nsf, bucky_ohare_nsf_len, 1 },
+    { "Bucky Ohare 3", bucky_ohare_nsf, bucky_ohare_nsf_len, 2 },
+    { "Bucky Ohare 4", bucky_ohare_nsf, bucky_ohare_nsf_len, 3 },
+};
 
 /**
  Create our Vgm decoder engine. It is used to decode Vgm or Nsf data.
  Vgm format is widely used as storage format for different platforms: MSX/MSX2, NES.
  Nsf format is valid only for NES platform. The decoder supports both.
  */
-VgmFile vgm;
+static VgmFile vgm;
+static uint16_t volume = 110;
+static bool updateVolume = false;
+static bool skipTrack = false;
+static int trackIndex = 0;
 
-void openNextTrack();
+DisplayWioTerminal_320x240x16 display;
+#define LCD_BACKLIGHT (72Ul) // Control Pin of LCD
+static LCDBackLight backLight;
+
+void openTrack();
+void updatePlayingStatus(bool updateTrackName, bool updateTrackVolume);
 
 // =========================================== DMA ===================================
 
@@ -111,26 +152,41 @@ void dmaInit()
 }
 
 
-void fillDmaBuffer(bool ignore_active)
+bool fillDmaBuffer(bool ignore_active)
 {
     /** If buffer to fill is the same as active, just exit */
     if ( buffer_to_fill == active_buffer && !ignore_active )
     {
-        return;
+        return false;
     }
     /** Decode vgm file to buffer */
     int len = vgm.decodePcm(buffer_tx[buffer_to_fill], sizeof(buffer_tx[0]));
     /**
      If len of decoded bytes is less than size of the buffer, that means the end of track.
-     Fill the rest buffer with 00000
+     Fill the rest buffer with 0x00
      */
-    if ( len < sizeof(buffer_tx[0]) )
+    if ( len < sizeof(buffer_tx[0]) or skipTrack )
     {
+        skipTrack = false;
         memset(buffer_tx[buffer_to_fill] + len, 0, sizeof(buffer_tx[0]) - len );
-        openTrack( bucky_ohare_nsf, bucky_ohare_nsf_len, 0 );
+        trackIndex++;
+        // Check for cycling the tracks
+        if ( trackIndex >= sizeof(tracks)/sizeof(tracks[0]) )
+        {
+            trackIndex = 0;
+        }
+        openTrack( );
+        updatePlayingStatus(true, false);
+    }
+    if ( updateVolume )
+    {
+        updateVolume = false;
+        vgm.setVolume( volume );
+        updatePlayingStatus(false, true);
     }
     /** And switch to the next buffer */
     buffer_to_fill = !buffer_to_fill;
+    return true;
 }
 
 
@@ -183,42 +239,124 @@ void pwmInit()
     while (TCC0->SYNCBUSY.bit.ENABLE);           // Wait for synchronization
 }
 
+// =========================================== BUTTONS ================================
+
+void button3Handler()
+{
+    volume = volume >= 10 ? (volume - 10) : 0;
+    updateVolume = true;
+}
+
+void button2Handler()
+{
+    volume = volume + 10;
+    updateVolume = true;
+}
+
+void button1Handler()
+{
+    skipTrack = true;
+}
+void initButtons()
+{
+    pinMode(BUTTON_3, INPUT);
+    pinMode(BUTTON_2, INPUT);
+    pinMode(BUTTON_1, INPUT);
+    attachInterrupt(digitalPinToInterrupt(BUTTON_3), button3Handler, FALLING);
+    attachInterrupt(digitalPinToInterrupt(BUTTON_2), button2Handler, FALLING);
+    attachInterrupt(digitalPinToInterrupt(BUTTON_1), button1Handler, FALLING);
+}
+
 // =========================================== Main ===================================
 
-void openTrack( const uint8_t *data, int len, int track )
+void openTrack( )
 {
     vgm.close();
-    vgm.open(data, len);
+    vgm.open(tracks[trackIndex].data, tracks[trackIndex].dataLen);
     /** Set max duration to 120 seconds for the track */
     vgm.setMaxDuration(120000);
     vgm.setFading(true);
     vgm.setSampleFrequency( 44100 );
     /** Some NSF files has several tracks inside, here we choose default */
-    vgm.setTrack( track );
-    /** Set volume to 120% */
-    vgm.setVolume( 120 );
+    vgm.setTrack( tracks[trackIndex].track );
+    /** Set volume to volume % */
+    vgm.setVolume( volume );
+}
+
+void updatePlayingStatus(bool updateTrackName, bool updateTrackVolume)
+{
+    if ( updateTrackName )
+    {
+        display.setColor( 0 );
+        display.fillRect( 16, 16, 319, 31 );
+        display.setColor( RGB_COLOR16(0, 255, 255) );
+        display.printFixed( 16, 16, tracks[trackIndex].name );
+    }
+    if ( updateTrackVolume )
+    {
+        if ( volume > 110 )
+            display.setColor( RGB_COLOR16(255, 64, 64) );
+        else
+            display.setColor( RGB_COLOR16(128, 255, 64) );
+
+        display.printFixed( 16, 32, "Volume level: " );
+        char level[12];
+        sprintf( level, "%u%%  ", volume );
+        display.write( level );
+    }
+    else
+    {
+        display.setColor( RGB_COLOR16(0, 255, 0) );
+        display.drawProgressBar( 100 * vgm.getDecodedSamples() / vgm.getTotalSamples() );
+    }
+}
+
+void switchToPlayMode()
+{
+    /** Fill first DMA buffer before starting DMA */
+    fillDmaBuffer( true );
+    /** Let's go */
+    pwmDMA.startJob();
+    updatePlayingStatus(true, true);
+    playerMode = MODE_PLAY;
 }
 
 // Output 44100Hz PWM on Metro M4 pin D12/PA17 using the TCC0 timer
 void setup()
 {
+    display.begin();
+    digitalWrite( LCD_BACKLIGHT, HIGH );
+    backLight.initialize();
+    backLight.setBrightness(120);
+    display.setFixedFont(ssd1306xled_font8x16);
+    display.clear();
+    
     pinMode(12, OUTPUT);
 
+    initButtons();
     pwmInit();
     dmaInit();
 
     /** Open music file */
-    openTrack( vampire_killer_vgm, vampire_killer_vgm_len, 0 );
+    trackIndex = 0;
+    openTrack( );
 
-    /** Fill first DMA buffer before starting DMA */
-    fillDmaBuffer( true );
 
-    /** Let's go */
-    pwmDMA.startJob();
+    switchToPlayMode();
 }
 
 void loop()
 {
-    /** Fill next DMA buffer if it is not used by DMA */
-    fillDmaBuffer( false );
+    if ( playerMode == MODE_PLAY )
+    {
+        /** Fill next DMA buffer if it is not used by DMA */
+        if ( fillDmaBuffer( false ) )
+        {
+            updatePlayingStatus(false, false);
+        }
+    }
+    else
+    {
+        // TODO: Implement browse mode
+    }
 }
