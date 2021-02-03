@@ -27,6 +27,7 @@ SOFTWARE.
 #include "vgm_file.h"
 #include "vampire_killer.h"
 #include "bucky_ohare.h"
+#include "contra.h"
 #include "lcdgfx.h"
 #include "lcd_backlight.hpp"
 //#include "Seeed_FS.h" //Including SD card library
@@ -53,13 +54,17 @@ typedef struct
 /**
  * Available tracks
  */
-static const TrackInfo tracks[] = 
+static const TrackInfo tracks[] =
 {
     { "Vampire Killer", vampire_killer_vgm, vampire_killer_vgm_len, 0 },
     { "Bucky Ohare 1", bucky_ohare_nsf, bucky_ohare_nsf_len, 0 },
     { "Bucky Ohare 2", bucky_ohare_nsf, bucky_ohare_nsf_len, 1 },
     { "Bucky Ohare 3", bucky_ohare_nsf, bucky_ohare_nsf_len, 2 },
     { "Bucky Ohare 4", bucky_ohare_nsf, bucky_ohare_nsf_len, 3 },
+    { "Contra 1", contra_nsf, contra_nsf_len, 0 },
+    { "Contra 2", contra_nsf, contra_nsf_len, 1 },
+    { "Contra 3", contra_nsf, contra_nsf_len, 2 },
+    { "Contra 4", contra_nsf, contra_nsf_len, 3 },
 };
 
 /**
